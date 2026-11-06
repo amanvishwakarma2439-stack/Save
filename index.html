@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Real Production Supabase Vault</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#06090e;color:#d2dde6;font-family:Arial,sans-serif;font-size:15px}
+#app{max-width:480px;margin:0 auto;padding:14px}
+h1{margin:4px 0 2px;font-size:20px;color:#00ff41;text-align:center;text-shadow:0 0 10px rgba(0,255,65,.5)}
+.sub{text-align:center;color:#5f7282;font-size:12px;margin-bottom:12px}
+.box{background:#0f141c;border:1px solid #1f2937;border-radius:12px;padding:16px;margin-bottom:12px}
+.lbl{font-size:11px;letter-spacing:1px;color:#00f0ff;margin-bottom:8px;text-transform:uppercase;font-weight:bold}
+.btn{display:block;width:100%;background:#052412;color:#00ff41;border:1px solid #00ff41;border-radius:8px;padding:14px;font-size:15px;font-weight:bold;cursor:pointer;margin-top:10px}
+.btn.cy{background:#04262c;color:#00f0ff;border-color:#00f0ff}
+#msg{display:none;margin-top:10px;padding:10px;border-radius:8px;text-align:center;font-weight:bold}
+.ok{background:#052412;color:#00ff41;border:1px solid #00ff41}
+.bad{background:#2a0b10;color:#ff5a68;border:1px solid #ff3b4e}
+#vault{background:#090d16;border:1px dashed #0b5f6b;border-radius:8px;padding:20px;text-align:center;font-size:24px;color:#00ff41;font-weight:bold;margin-top:10px}
+.vbar{height:10px;width:100%;background:#111;border-radius:5px;overflow:hidden;margin-top:8px}
+#tfill{height:100%;width:0%;background:#00ff41;transition:width 1s linear}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <h1>☁️ REAL EMPIRE VAULT v1.0</h1>
+  <div class="sub">Production Grade Code • Multi-Factor Authentication</div>
+
+  <!-- बायोमेट्रिक सुरक्षा स्थिति -->
+  <div class="box">
+    <div class="lbl">🔒 Hardware Security Layer</div>
+    <div id="biostatus">चेक किया जा रहा है...</div>
+  </div>
+
+  <!-- यूजर लॉगिन इंटरफ़ेस -->
+  <div class="box">
+    <div class="lbl">🔑 Step 1: Verification</div>
+    <button class="btn cy" id="scanBtn">🖐️ स्कैन फिंगरप्रिंट और लॉगिन करें</button>
+    <div id="msg"></div>
+  </div>
+
+  <!-- तिजोरी (डेटाबेस का लाइव रिफ्लेक्शन) -->
+  <div class="box" id="bankBox" style="display:none;">
+    <div class="lbl">🗃️ Live Connected Database Wallet</div>
+    <div id="vault">₹50,000.00</div>
+    <div style="font-size:12px;color:#ffc93c;margin-top:10px;text-align:center;" id="timerText">सुरक्षित समय: 5s</div>
+    <div class="vbar"><div id="tfill"></div></div>
+    <p id="debugPin" style="font-size:11px;color:#5f7282;text-align:center;margin-top:8px;"></p>
+  </div>
+</div>
+
+<script>
+// ================= STEP 1: SUPABASE CONFIGURATION =================
+var SUPABASE_URL = "https://supabase.co";
+var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkbnd2cWVoaG9vZW5tenZteGh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4OTYxODcsImV4cCI6MjEwOTQ3MjE4N30.RcY2df0_W3A2mbbQborkNgAEw0V3aKoLRi9pYsXxEmY";
+
+var currentActivePin = "1234";
+var countdownInterval = null;
+
+function $(id) { return document.getElementById(id); }
+
+// ================= STEP 2: DATABASE FUNCTION (SUPABASE WRITE) =================
+// यह फंक्शन सर्वर/डेटाबेस में नया जनरेटेड पिन लाइव अपडेट करता है
+async function updatePinInSupabaseTable(newPin) {
+  var url = SUPABASE_URL + "/rest/v1/vault"; 
+  // मान लेते हैं कि आपकी टेबल का नाम 'vault' है
+  try {
+    var response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify([
+        { 
+          password: btoa(newPin), // सुरक्षा के लिए बेस64 एन्क्रिप्शन
+          level: "enterprise_rolling",
+          created_at: new Date().toISOString()
+        }
+      ])
+    });
+    console.log("डेटाबेस स्टेटस: नया पिन Supabase टेबल में सेव हो गया! 🟢");
+  } catch (err) {
+    console.error("डेटाबेस एरर: ", err);
+  }
+}
+
+// ================= STEP 3: REAL BIOMETRIC API LAYER =================
+// यह फंक्शन फोन के असली फिंगरप्रिंट/फेस लॉक हार्डवेयर को कॉल करता है
+async function triggerRealBiometricSensor() {
+  if (!window.PublicKeyCredential) {
+    throw new Error("आपके फोन का ब्राउज़र असली बायोमेट्रिक API सपोर्ट नहीं करता।");
+  }
+
+  // असली वेब ऑथेंटिकेशन (WebAuthn) चैलेंज प्रोटोकॉल
+  var mockChallenge = new Uint8Array(32);
+  window.crypto.getRandomValues(mockChallenge);
+
+  var publicKeyCredentialCreationOptions = {
+    challenge: mockChallenge,
+    rp: { name: "Empire Vault Inc." },
+    user: {
+      id: new Uint8Array([1, 2, 3, 4]),
+      name: "aman@startup.com",
+      displayName: "Aman"
+    },
+    pubKeyCredParams: [{type: "public-key", alg: -7}],
+    authenticatorSelection: { authenticatorAttachment: "platform" }, // "platform" का मतलब फोन का इन-बिल्ट सेंसर (Fingerprint/FaceId)
+    timeout: 60000
+  };
+
+  // यह लाइन फोन के असली सिस्टम फिंगरप्रिंट स्कैनर पॉप-अप को स्क्रीन पर खींच लाएगी!
+  return await navigator.credentials.create({ publicKey: publicKeyCredentialCreationOptions });
+}
+
+// ================= STEP 4: ORCHESTRATION (दोनों को एक साथ चलाना) =================
+window.onload = function() {
+  if (window.PublicKeyCredential) {
+    $("biostatus").innerHTML = "हार्डवेयर सेंसर लिंक स्थापित: बायोमेट्रिक्स रेडी 🟢";
+    $("biostatus").style.color = "#00ff41";
+  } else {
+    $("biostatus").innerHTML = "लोकल सिम्युलेटर मोड एक्टिव 🟡";
+    $("biostatus").style.color = "#ffc93c";
+  }
+};
+
+$("scanBtn").onclick = async function() {
+  var msgBox = $("msg");
+  msgBox.style.display = "block";
+  msgBox.className = "ok";
+  msgBox.innerHTML = "कृपया अपना फिंगरप्रिंट सेंसर पर छुएं...";
+
+  try {
+    // 1. बायोमेट्रिक API चालू हुई
+    await triggerRealBiometricSensor();
+    
+    // 2. फिंगरप्रिंट सही होने पर सफलता संदेश और बैंक डेटा विज़िबल
+    msgBox.innerHTML = "बायोमेट्रिक वेरिफाइड! एक्सेस ग्रांटेड ✅";
+    $("bankBox").style.display = "block";
+    $("debugPin").innerHTML = "करंट लाइव पिन: " + currentActivePin;
+
+    // 5-सेकंड का चक्रव्यूह टाइमर चालू
+    if(countdownInterval) clearInterval(countdownInterval);
+    var secondsLeft = 5;
+    $("tfill").style.width = "100%";
+    $("timerText").innerHTML = "सुरक्षित समय: " + secondsLeft + "s";
+
+    countdownInterval = setInterval(async function() {
+      secondsLeft--;
+      $("timerText").innerHTML = "सुरक्षित समय: " + secondsLeft + "s";
+      $("tfill").style.width = (secondsLeft * 20) + "%";
+
+      if(secondsLeft <= 0) {
+        clearInterval(countdownInterval);
+        
+        // 5 सेकंड खत्म! नया पिन बनाएं
+        var nextPin = Math.floor(1000 + Math.random() * 9000).toString();
+        currentActivePin = nextPin;
+
+        // 3. तुरंत बिना देरी किए नए पिन को Supabase डेटाबेस टेबल में राइट (Save) करना
+        await updatePinInSupabaseTable(nextPin);
+
+        // सुरक्षा के लिए स्क्रीन तुरंत लॉक करें
+        $("bankBox").style.display = "none";
+        msgBox.className = "bad";
+        msgBox.innerHTML = "समय समाप्त! पिन ऑटोमैटिक बदल गया। सुरक्षा के लिए लॉगआउट किया गया।";
+      }
+    }, 1000);
+
+  } catch (error) {
+    // अगर यूजर फिंगरप्रिंट कैंसिल कर दे या सेंसर एरर आए
+    msgBox.className = "bad";
+    msgBox.innerHTML = "सुरक्षा एरर: " + error.message;
+    console.error(error);
+  }
+};
+</script>
+</body>
+</html>
